@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+  <title>Draft Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: transparent;
+      color: #c8c8c8;
+      overflow: hidden;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .panel {
+      background: rgba(10, 10, 20, 0.94);
+      border: 1px solid #c89b3c;
+      border-radius: 8px;
+      padding: 12px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    /* ── Drag regions ── */
+    .draggable { -webkit-app-region: drag; }
+    .no-drag { -webkit-app-region: no-drag; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(200, 155, 60, 0.3);
+      cursor: grab;
+    }
+
+    .header-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #c89b3c;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+    }
+
+    .phase-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(200, 155, 60, 0.15);
+      color: #c89b3c;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .phase-badge.ban { background: rgba(220, 60, 60, 0.2); color: #e05555; }
+    .phase-badge.pick { background: rgba(60, 160, 220, 0.2); color: #55a5e0; }
+    .phase-badge.complete { background: rgba(60, 180, 90, 0.2); color: #55c06a; }
+
+    /* ── Teams row ── */
+    .teams {
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+    }
+
+    .team-col {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+
+    .team-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 4px;
+      color: #888;
+    }
+
+    .team-label.ally { color: #3a8fd4; }
+    .team-label.enemy { color: #d43a3a; }
+
+    .team-picks {
+      list-style: none;
+    }
+
+    .team-picks li {
+      padding: 1px 0;
+      color: #999;
+      font-size: 11px;
+    }
+
+    .team-picks li.filled {
+      color: #ddd;
+      font-weight: 500;
+    }
+
+    /* ── Bans row ── */
+    .bans-row {
+      font-size: 10px;
+      color: #777;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .bans-row span {
+      color: #e05555;
+      font-weight: 500;
+    }
+
+    /* ── Recommendations ── */
+    .recommendations {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .recommendations::-webkit-scrollbar { width: 4px; }
+    .recommendations::-webkit-scrollbar-track { background: transparent; }
+    .recommendations::-webkit-scrollbar-thumb { background: rgba(200, 155, 60, 0.3); border-radius: 2px; }
+
+    .rec-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 10px;
+      animation: slideIn 0.25s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .rec-card.ban {
+      border-left: 3px solid #e05555;
+    }
+
+    .rec-card.pick {
+      border-left: 3px solid #3a8fd4;
+    }
+
+    .rec-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .rec-action {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .rec-action.ban { background: rgba(220, 60, 60, 0.2); color: #e05555; }
+    .rec-action.pick { background: rgba(60, 160, 220, 0.2); color: #55a5e0; }
+
+    .pick-type-badge {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-left: 4px;
+    }
+
+    .pick-type-badge.blind { background: rgba(200, 155, 60, 0.2); color: #c89b3c; }
+    .pick-type-badge.counter { background: rgba(220, 60, 60, 0.2); color: #e05555; }
+    .pick-type-badge.synergy { background: rgba(60, 180, 90, 0.2); color: #55c06a; }
+
+    .rec-champion {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f0e6d2;
+    }
+
+    .rec-role {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+      margin-left: 6px;
+    }
+
+    .rec-reason {
+      font-size: 11px;
+      color: #aaa;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .rec-counters {
+      font-size: 10px;
+      color: #7ab;
+      margin-bottom: 6px;
+    }
+
+    /* ── Confidence bar ── */
+    .confidence {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .confidence-label {
+      font-size: 9px;
+      color: #777;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 60px;
+    }
+
+    .confidence-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .confidence-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+
+    .confidence-fill.high { background: linear-gradient(90deg, #3ac46a, #55e080); }
+    .confidence-fill.medium { background: linear-gradient(90deg, #c8a83c, #e0c050); }
+    .confidence-fill.low { background: linear-gradient(90deg, #c83c3c, #e05555); }
+
+    .confidence-value {
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .confidence-value.high { color: #55e080; }
+    .confidence-value.medium { color: #e0c050; }
+    .confidence-value.low { color: #e05555; }
+
+    /* ── Waiting state ── */
+    .waiting {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      font-size: 12px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .waiting .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid rgba(200, 155, 60, 0.2);
+      border-top-color: #c89b3c;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── Finalized state ── */
+    .finalized-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: rgba(60, 180, 90, 0.1);
+      border: 1px solid rgba(60, 180, 90, 0.3);
+      border-radius: 6px;
+      color: #55c06a;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      text-align: center;
+    }
+
+    .riot-disclaimer {
+      font-size: 7px;
+      color: #444;
+      text-align: center;
+      padding: 3px 6px;
+      line-height: 1.3;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <!-- Header (draggable region) -->
+    <div class="header draggable">
+      <div class="header-title">Drafting Oracle</div>
+      <div class="phase-badge" id="phase-badge">Waiting</div>
+    </div>
+
+    <!-- Bans row -->
+    <div class="bans-row hidden no-drag" id="bans-row">
+      Bans: <span id="bans-list">--</span>
+    </div>
+
+    <!-- Teams -->
+    <div class="teams hidden no-drag" id="teams-section">
+      <div class="team-col">
+        <div class="team-label ally">Allies</div>
+        <ul class="team-picks" id="ally-picks"></ul>
+      </div>
+      <div class="team-col">
+        <div class="team-label enemy">Enemies</div>
+        <ul class="team-picks" id="enemy-picks"></ul>
+      </div>
+    </div>
+
+    <!-- Finalized banner (hidden until lock-in) -->
+    <div class="finalized-banner hidden" id="finalized-banner">Selection Finalized — Audit Closed</div>
+
+    <!-- Recommendations -->
+    <div class="recommendations no-drag" id="recommendations"></div>
+
+    <!-- Waiting state -->
+    <div class="waiting no-drag" id="waiting">
+      <div class="spinner"></div>
+      <div>Waiting for champion select...</div>
+      <div style="font-size: 10px; color: #444;">Recommendations will appear here</div>
+    </div>
+
+    <div class="riot-disclaimer">Rift Architect isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties.</div>
+  </div>
+
+  <script>
+    // State
+    const state = {
+      phase: "waiting",
+      myTeam: [],
+      theirTeam: [],
+      bans: [],
+      recommendations: [],
+    };
+
+    const MAX_RECOMMENDATIONS = 8;
+
+    // ── DOM refs ──
+    const $phaseBadge = document.getElementById("phase-badge");
+    const $bansRow = document.getElementById("bans-row");
+    const $bansList = document.getElementById("bans-list");
+    const $teams = document.getElementById("teams-section");
+    const $allyPicks = document.getElementById("ally-picks");
+    const $enemyPicks = document.getElementById("enemy-picks");
+    const $recs = document.getElementById("recommendations");
+    const $waiting = document.getElementById("waiting");
+    const $finalizedBanner = document.getElementById("finalized-banner");
+
+    // ── Helpers ──
+    function confidenceLevel(c) {
+      if (c >= 0.7) return "high";
+      if (c >= 0.4) return "medium";
+      return "low";
+    }
+
+    function renderPhaseBadge(phase) {
+      const labels = {
+        ban_phase_1: "Ban Phase 1",
+        ban_phase_2: "Ban Phase 2",
+        pick_phase: "Pick Phase",
+        complete: "Complete",
+        unknown: "Draft",
+      };
+
+      $phaseBadge.textContent = labels[phase] || phase;
+      $phaseBadge.className = "phase-badge";
+
+      if (phase.startsWith("ban")) $phaseBadge.classList.add("ban");
+      else if (phase === "pick_phase") $phaseBadge.classList.add("pick");
+      else if (phase === "complete") $phaseBadge.classList.add("complete");
+    }
+
+    function renderTeams(myTeam, theirTeam) {
+      if (!myTeam.length && !theirTeam.length) {
+        $teams.classList.add("hidden");
+        return;
+      }
+
+      $teams.classList.remove("hidden");
+
+      $allyPicks.innerHTML = "";
+      for (const p of myTeam) {
+        const li = document.createElement("li");
+        const label = p.label || "Ally";
+        if (p.champion) {
+          li.textContent = `${label}: ${p.champion} (${p.position || "?"})`;
+          li.classList.add("filled");
+        } else if (p.championIntent) {
+          li.textContent = `${label}: [${p.championIntent}] (${p.position || "?"})`;
+        } else {
+          li.textContent = `${label}: -- (${p.position || "?"})`;
+        }
+        $allyPicks.appendChild(li);
+      }
+
+      $enemyPicks.innerHTML = "";
+      for (const p of theirTeam) {
+        const li = document.createElement("li");
+        const label = p.label || "Enemy";
+        if (p.champion) {
+          li.textContent = `${label}: ${p.champion} (${p.position || "?"})`;
+          li.classList.add("filled");
+        } else {
+          li.textContent = `${label}: -- (${p.position || "?"})`;
+        }
+        $enemyPicks.appendChild(li);
+      }
+    }
+
+    function renderBans(bans) {
+      if (!bans || !bans.length) {
+        $bansRow.classList.add("hidden");
+        return;
+      }
+      $bansRow.classList.remove("hidden");
+      $bansList.textContent = bans.join(", ");
+    }
+
+    function createRecCard(rec) {
+      const card = document.createElement("div");
+      card.className = `rec-card ${rec.action}`;
+
+      const level = confidenceLevel(rec.confidence);
+      const pct = Math.round(rec.confidence * 100);
+
+      let countersHtml = "";
+      if (rec.counters && rec.counters.length) {
+        countersHtml = `<div class="rec-counters">Counters: ${rec.counters.join(", ")}</div>`;
+      }
+
+      let roleHtml = "";
+      if (rec.role) {
+        roleHtml = `<span class="rec-role">${rec.role}</span>`;
+      }
+
+      const pickTypeLabels = { blind: "Blind Pick", counter: "Counter Pick", synergy: "Synergy Pick" };
+      let pickTypeBadgeHtml = "";
+      if (rec.pick_type && pickTypeLabels[rec.pick_type]) {
+        pickTypeBadgeHtml = `<span class="pick-type-badge ${rec.pick_type}">${pickTypeLabels[rec.pick_type]}</span>`;
+      }
+
+      card.innerHTML = `
+        <div class="rec-header">
+          <div>
+            <span class="rec-champion">${rec.champion}</span>${roleHtml}
+          </div>
+          <div>
+            <span class="rec-action ${rec.action}">${rec.action}</span>${pickTypeBadgeHtml}
+          </div>
+        </div>
+        <div class="rec-reason">${rec.reason || ""}</div>
+        ${countersHtml}
+        <div class="confidence">
+          <span class="confidence-label">Confidence</span>
+          <div class="confidence-bar">
+            <div class="confidence-fill ${level}" style="width: ${pct}%"></div>
+          </div>
+          <span class="confidence-value ${level}">${pct}%</span>
+        </div>
+      `;
+
+      return card;
+    }
+
+    function renderRecommendations() {
+      $recs.innerHTML = "";
+
+      if (!state.recommendations.length) return;
+
+      // Show most recent first
+      const toShow = state.recommendations.slice(-MAX_RECOMMENDATIONS).reverse();
+      for (const rec of toShow) {
+        $recs.appendChild(createRecCard(rec));
+      }
+    }
+
+    function showActive() {
+      $waiting.classList.add("hidden");
+    }
+
+    // ── IPC listeners ──
+    if (window.riftApi) {
+      // Phase updates from the polling pipeline
+      window.riftApi.on("draft:phase-update", (data) => {
+        showActive();
+
+        if (data.phase) {
+          state.phase = data.phase;
+          renderPhaseBadge(data.phase);
+        }
+
+        if (data.myTeam) {
+          state.myTeam = data.myTeam;
+        }
+        if (data.theirTeam) {
+          state.theirTeam = data.theirTeam;
+        }
+
+        renderTeams(state.myTeam, state.theirTeam);
+      });
+
+      // Recommendations from Claude (ban or pick)
+      window.riftApi.on("draft:recommendation", (data) => {
+        showActive();
+
+        if (data.recommendations) {
+          for (const rec of data.recommendations) {
+            state.recommendations.push(rec);
+          }
+        }
+
+        renderRecommendations();
+      });
+
+      // Lock-in finalized — stop showing new recommendations, show banner
+      window.riftApi.on("draft:finalized", () => {
+        $finalizedBanner.classList.remove("hidden");
+        $phaseBadge.textContent = "Locked In";
+        $phaseBadge.className = "phase-badge complete";
+      });
+
+      // Global phase change from orchestrator
+      window.riftApi.on("orchestrator:phase-changed", (phase) => {
+        if (phase === "IDLE" || phase === "LOBBY") {
+          // Reset state when leaving champ select
+          state.recommendations = [];
+          state.myTeam = [];
+          state.theirTeam = [];
+          state.bans = [];
+          state.phase = "waiting";
+
+          $recs.innerHTML = "";
+          $teams.classList.add("hidden");
+          $bansRow.classList.add("hidden");
+          $finalizedBanner.classList.add("hidden");
+          $phaseBadge.textContent = "Waiting";
+          $phaseBadge.className = "phase-badge";
+          $waiting.classList.remove("hidden");
+        }
+      });
+    }
+  </script>
+</body>
+</html>

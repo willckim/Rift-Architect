@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+  <title>Rift Architect</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid #1a1a2e;
+    }
+    .header h1 { font-size: 24px; color: #c89b3c; margin-bottom: 4px; }
+    .header .subtitle { font-size: 12px; color: #666; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #1a1a2e;
+      padding: 0 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #c89b3c; border-bottom-color: #c89b3c; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-track { background: transparent; }
+    .content::-webkit-scrollbar-thumb { background: rgba(200, 155, 60, 0.2); border-radius: 3px; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Status panel ── */
+    .status-box {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .label { color: #888; font-size: 13px; }
+    .value { color: #c89b3c; font-weight: 600; font-size: 13px; }
+    #phase { color: #5cb85c; }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-dot.connected { background: #5cb85c; }
+    .status-dot.disconnected { background: #e04040; }
+
+    /* ── Match History ── */
+    .match-list { display: flex; flex-direction: column; gap: 6px; }
+    .match-card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .match-card.win { border-left: 3px solid #5cb85c; }
+    .match-card.loss { border-left: 3px solid #e04040; }
+    .match-champ { font-weight: 600; color: #ddd; font-size: 13px; }
+    .match-kda { color: #aaa; font-size: 12px; }
+    .match-result { font-weight: 700; font-size: 11px; text-transform: uppercase; }
+    .match-result.win { color: #5cb85c; }
+    .match-result.loss { color: #e04040; }
+    .match-meta { font-size: 11px; color: #666; }
+
+    .empty-state {
+      text-align: center;
+      color: #555;
+      padding: 40px 20px;
+      font-size: 13px;
+    }
+
+    /* ── Action button ── */
+    .action-btn {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #c89b3c;
+      background: rgba(200, 155, 60, 0.08);
+      border: 1px solid rgba(200, 155, 60, 0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .action-btn:hover {
+      background: rgba(200, 155, 60, 0.15);
+      border-color: rgba(200, 155, 60, 0.5);
+    }
+    .action-btn:active { transform: scale(0.98); }
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .action-btn .btn-subtitle {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      color: #666;
+      margin-top: 3px;
+    }
+    .action-result {
+      text-align: center;
+      font-size: 11px;
+      padding: 6px 0;
+      min-height: 24px;
+    }
+    .action-result.success { color: #5cb85c; }
+    .action-result.error { color: #e04040; }
+
+    /* ── Settings panel ── */
+    .settings-section {
+      margin-bottom: 20px;
+    }
+    .settings-section h3 {
+      font-size: 12px;
+      color: #c89b3c;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(200, 155, 60, 0.2);
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+    }
+    .setting-label {
+      font-size: 13px;
+      color: #ccc;
+    }
+    .setting-desc {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      cursor: pointer;
+    }
+    .toggle input { display: none; }
+    .toggle .slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #333;
+      border-radius: 11px;
+      transition: background 0.2s;
+    }
+    .toggle .slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #888;
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle input:checked + .slider { background: rgba(200, 155, 60, 0.3); }
+    .toggle input:checked + .slider::before { transform: translateX(18px); background: #c89b3c; }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 10px 20px;
+      border-top: 1px solid #1a1a2e;
+      text-align: center;
+      font-size: 10px;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <h1>Rift Architect</h1>
+    <div class="subtitle">Multi-Agent League of Legends Orchestrator</div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="status">Status</div>
+    <div class="tab" data-tab="history">Match History</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Status Panel -->
+    <div class="panel active" id="panel-status">
+      <div class="status-box">
+        <div class="status-row">
+          <span class="label">Connection</span>
+          <span class="value"><span class="status-dot disconnected" id="status-dot"></span><span id="connection">Waiting for League Client...</span></span>
+        </div>
+        <div class="status-row">
+          <span class="label">Game Phase</span>
+          <span class="value" id="phase">IDLE</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Active Agent</span>
+          <span class="value" id="agent">None</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Summoner</span>
+          <span class="value" id="summoner">--</span>
+        </div>
+      </div>
+
+      <button class="action-btn" id="btn-activate-ingame">
+        Activate In-Game Overlay
+        <span class="btn-subtitle">Manually show spell tracker &amp; verify Live Client API (port 2999)</span>
+      </button>
+      <div class="action-result" id="activate-result"></div>
+    </div>
+
+    <!-- Match History Panel -->
+    <div class="panel" id="panel-history">
+      <div class="match-list" id="match-list">
+        <div class="empty-state">No matches recorded yet.<br>Play a game and your history will appear here.</div>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="panel" id="panel-settings">
+      <div class="settings-section">
+        <h3>Agents</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Drafting Oracle</div>
+            <div class="setting-desc">Ban/pick recommendations during champion select</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-agent-draft" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Macro Strategist</div>
+            <div class="setting-desc">In-game strategic toast notifications</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-agent-macro" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Tilt Guard</div>
+            <div class="setting-desc">Post-game wellness and performance tracking</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-agent-tilt" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Application</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Launch on Startup</div>
+            <div class="setting-desc">Automatically start Rift Architect when Windows boots</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="setting-auto-launch">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">Rift Architect v1.0.0</div>
+
+  <script>
+    const PHASE_AGENTS = {
+      IDLE: "None",
+      LOBBY: "None",
+      CHAMP_SELECT: "Drafting Oracle",
+      LOADING: "None",
+      IN_GAME: "Macro Strategist",
+      POST_GAME: "Tilt Guard",
+    };
+
+    // ── Tab switching ──
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+
+        // Load match history when tab is clicked
+        if (tab.dataset.tab === "history") loadMatchHistory();
+      });
+    });
+
+    // ── Settings toggles ──
+    const SETTINGS_MAP = {
+      "setting-agent-draft": "agent_drafting_oracle_enabled",
+      "setting-agent-macro": "agent_macro_strategist_enabled",
+      "setting-agent-tilt": "agent_tilt_guard_enabled",
+      "setting-auto-launch": "auto_launch",
+    };
+
+    // Load saved settings
+    async function loadSettings() {
+      if (!window.riftApi) return;
+      for (const [elemId, key] of Object.entries(SETTINGS_MAP)) {
+        const value = await window.riftApi.invoke("settings:get", key);
+        const el = document.getElementById(elemId);
+        if (el) el.checked = value !== "false"; // Default to enabled
+      }
+    }
+
+    // Wire up toggle change events
+    for (const [elemId, key] of Object.entries(SETTINGS_MAP)) {
+      const el = document.getElementById(elemId);
+      if (el) {
+        el.addEventListener("change", () => {
+          if (window.riftApi) {
+            window.riftApi.send("settings:set", key, String(el.checked));
+          }
+        });
+      }
+    }
+
+    // ── Match history ──
+    async function loadMatchHistory() {
+      if (!window.riftApi) return;
+      const matches = await window.riftApi.invoke("session:history");
+      const list = document.getElementById("match-list");
+
+      if (!matches || matches.length === 0) {
+        list.innerHTML = '<div class="empty-state">No matches recorded yet.<br>Play a game and your history will appear here.</div>';
+        return;
+      }
+
+      list.innerHTML = "";
+      for (const m of matches) {
+        const card = document.createElement("div");
+        const isWin = m.win === 1 || m.win === true;
+        card.className = `match-card ${isWin ? "win" : "loss"}`;
+        const duration = m.game_duration ? `${Math.round(m.game_duration / 60)}m` : "--";
+        card.innerHTML = `
+          <div>
+            <div class="match-champ">${m.champion_name || "Unknown"}</div>
+            <div class="match-meta">${m.role || "--"} &middot; ${duration} &middot; ${m.game_mode || ""}</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="match-kda">${m.kills}/${m.deaths}/${m.assists}</div>
+            <div class="match-result ${isWin ? "win" : "loss"}">${isWin ? "WIN" : "LOSS"}</div>
+          </div>
+        `;
+        list.appendChild(card);
+      }
+    }
+
+    // ── In-Game Activation Button ──
+    const $activateBtn = document.getElementById("btn-activate-ingame");
+    const $activateResult = document.getElementById("activate-result");
+
+    $activateBtn.addEventListener("click", async () => {
+      if (!window.riftApi) return;
+      $activateBtn.disabled = true;
+      $activateResult.textContent = "Checking Live Client API...";
+      $activateResult.className = "action-result";
+
+      try {
+        const result = await window.riftApi.invoke("overlay:activate-ingame");
+        $activateResult.textContent = result.message;
+        $activateResult.className = `action-result ${result.success ? "success" : "error"}`;
+      } catch (err) {
+        $activateResult.textContent = "Failed to reach main process.";
+        $activateResult.className = "action-result error";
+      }
+
+      $activateBtn.disabled = false;
+    });
+
+    // ── IPC listeners ──
+    if (window.riftApi) {
+      window.riftApi.on("orchestrator:phase-changed", (phase) => {
+        document.getElementById("phase").textContent = phase;
+        document.getElementById("agent").textContent = PHASE_AGENTS[phase] || "None";
+      });
+
+      window.riftApi.on("status:update", (status) => {
+        const conn = document.getElementById("connection");
+        const dot = document.getElementById("status-dot");
+        conn.textContent = status;
+
+        if (status.toLowerCase().includes("connected") && !status.toLowerCase().includes("disconnected")) {
+          dot.className = "status-dot connected";
+        } else {
+          dot.className = "status-dot disconnected";
+        }
+      });
+
+      // Load settings on startup
+      loadSettings();
+    }
+  </script>
+  <div style="position: fixed; bottom: 0; left: 0; right: 0; font-size: 9px; color: #484f58; text-align: center; padding: 6px 12px; line-height: 1.4; background: #0d1117; border-top: 1px solid #21262d;">Rift Architect isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</div>
+</body>
+</html>

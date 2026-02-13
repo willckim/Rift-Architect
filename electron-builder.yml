@@ -1,0 +1,20 @@
+appId: com.william.rift-architect
+productName: Rift Architect
+directories:
+  output: dist
+files:
+  - "src/**/*"
+  - "shared/**/*"
+  - "package.json"
+  - "node_modules/**/*"
+win:
+  target: [portable]
+  icon: resources/icon.png
+  signAndEditExecutable: false
+mac:
+  target: [dmg]
+  icon: resources/icon.icns
+  category: public.app-category.games
+linux:
+  target: [AppImage]
+  icon: resources/icon.png

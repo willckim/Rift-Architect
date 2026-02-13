@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+  <title>Macro Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: transparent;
+      color: #e0e0e0;
+      overflow: hidden;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .toast-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 4px;
+    }
+
+    /* ── Toast Base ── */
+    .toast {
+      background: rgba(10, 10, 20, 0.94);
+      border-radius: 6px;
+      padding: 10px 14px;
+      border-left: 3px solid #3a8fd4;
+      animation: slideIn 0.3s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .toast.dismissing {
+      animation: slideOut 0.3s ease-in forwards;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes slideOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* ── Info (Blue) ── */
+    .toast.info {
+      border-left-color: #3a8fd4;
+    }
+
+    .toast.info .call-type { color: #5ab5f0; }
+
+    .toast.info .urgency-badge {
+      background: rgba(58, 143, 212, 0.2);
+      color: #5ab5f0;
+    }
+
+    .toast.info .toast-progress { background: #3a8fd4; }
+
+    /* ── Suggestion (Amber) ── */
+    .toast.suggestion {
+      border-left-color: #e0a030;
+    }
+
+    .toast.suggestion .call-type { color: #f0c050; }
+
+    .toast.suggestion .urgency-badge {
+      background: rgba(224, 160, 48, 0.2);
+      color: #f0c050;
+    }
+
+    .toast.suggestion .toast-progress { background: #e0a030; }
+
+    /* ── Urgent (Red/Gold High-Contrast) ── */
+    .toast.urgent {
+      border-left: 3px solid #ff4444;
+      background: linear-gradient(135deg, rgba(25, 8, 8, 0.96), rgba(30, 15, 5, 0.96));
+      animation: slideIn 0.3s ease-out, pulseUrgent 1.2s ease-in-out infinite;
+      box-shadow: 0 0 8px rgba(255, 68, 68, 0.3), inset 0 0 30px rgba(255, 215, 0, 0.04);
+    }
+
+    .toast.urgent .call-type {
+      color: #FFD700;
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+    }
+
+    .toast.urgent .urgency-badge {
+      background: rgba(255, 68, 68, 0.3);
+      color: #FFD700;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .toast.urgent .toast-message {
+      color: #fff;
+    }
+
+    .toast.urgent .toast-progress {
+      background: linear-gradient(90deg, #ff4444, #FFD700);
+    }
+
+    @keyframes pulseUrgent {
+      0%, 100% { box-shadow: 0 0 8px rgba(255, 68, 68, 0.2); }
+      50% { box-shadow: 0 0 20px rgba(255, 68, 68, 0.5), 0 0 40px rgba(255, 215, 0, 0.15); }
+    }
+
+    /* ── Progress bar for auto-dismiss ── */
+    .toast-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      border-radius: 0 0 0 6px;
+      animation: shrink linear forwards;
+    }
+
+    @keyframes shrink {
+      from { width: 100%; }
+      to { width: 0%; }
+    }
+
+    /* ── Header row ── */
+    .toast-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .call-type {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .urgency-badge {
+      font-size: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+
+    /* ── Body ── */
+    .toast-message {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #ccc;
+    }
+
+    .toast-time {
+      font-size: 9px;
+      color: #555;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="toast-container" id="toasts"></div>
+  <div style="position: fixed; bottom: 0; left: 0; right: 0; font-size: 7px; color: #333; text-align: center; padding: 2px 4px; pointer-events: none;">Rift Architect isn't endorsed by Riot Games.</div>
+
+  <script>
+    const MAX_VISIBLE = 3;
+    const DEFAULT_WINDOW_SECONDS = 15;
+    const toasts = []; // { id, element, timer }
+
+    const $container = document.getElementById("toasts");
+
+    function formatGameTime(seconds) {
+      if (!seconds) return "";
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    function formatCallType(type) {
+      return (type || "MACRO")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function dismissToast(id) {
+      const idx = toasts.findIndex((t) => t.id === id);
+      if (idx === -1) return;
+
+      const toast = toasts[idx];
+      if (toast.timer) clearTimeout(toast.timer);
+
+      toast.element.classList.add("dismissing");
+      setTimeout(() => {
+        toast.element.remove();
+        toasts.splice(toasts.indexOf(toast), 1);
+      }, 300);
+    }
+
+    function addToast(data) {
+      // Enforce max visible — remove oldest if at capacity
+      while (toasts.length >= MAX_VISIBLE) {
+        dismissToast(toasts[0].id);
+      }
+
+      const urgency = data.urgency || "info";
+      const windowSec = data.window_seconds || DEFAULT_WINDOW_SECONDS;
+      const id = data.id || `toast-${Date.now()}`;
+
+      const el = document.createElement("div");
+      el.className = `toast ${urgency}`;
+      el.innerHTML = `
+        <div class="toast-header">
+          <span class="call-type">${formatCallType(data.call_type)}</span>
+          <span class="urgency-badge">${urgency}</span>
+        </div>
+        <div class="toast-message">${data.message || data.reasoning || ""}</div>
+        <div class="toast-time">${data.game_time ? formatGameTime(data.game_time) : ""}</div>
+        <div class="toast-progress" style="animation-duration: ${windowSec}s"></div>
+      `;
+
+      $container.appendChild(el);
+
+      const timer = setTimeout(() => dismissToast(id), windowSec * 1000);
+      toasts.push({ id, element: el, timer });
+    }
+
+    // ── IPC listeners ──
+    if (window.riftApi) {
+      window.riftApi.on("macro:call", (data) => {
+        addToast(data);
+      });
+
+      window.riftApi.on("macro:dismiss", (data) => {
+        if (data && data.id) {
+          dismissToast(data.id);
+        }
+      });
+
+      // Reset on phase change away from IN_GAME
+      window.riftApi.on("orchestrator:phase-changed", (phase) => {
+        if (phase !== "IN_GAME") {
+          // Clear all toasts
+          const ids = toasts.map((t) => t.id);
+          ids.forEach((id) => dismissToast(id));
+        }
+      });
+    }
+  </script>
+</body>
+</html>

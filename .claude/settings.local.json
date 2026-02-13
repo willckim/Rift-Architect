@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(npx electron:*)",
+      "Bash(npx electron-rebuild:*)",
+      "Bash(npx electron-builder:*)",
+      "Bash(python -c:*)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force ''C:\\\\Users\\\\willi\\\\AppData\\\\Local\\\\electron-builder\\\\Cache\\\\winCodeSign'' -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force ''C:\\\\Users\\\\willi\\\\AppData\\\\Local\\\\electron-builder\\\\Cache\\\\winCodeSign''\")",
+      "Bash(powershell -Command:*)",
+      "Bash(dir:*)",
+      "Bash(cmd /c \"dir /s /b C:\\\\Users\\\\willi\\\\rift-architect\\\\dist\\\\*.exe\")",
+      "Bash(cmd /c \"dir C:\\\\Users\\\\willi\\\\rift-architect\\\\dist\")",
+      "Bash(timeout:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:maknee.github.io)",
+      "WebFetch(domain:raw.communitydragon.org)",
+      "WebFetch(domain:lolalytics.com)",
+      "WebFetch(domain:www.leagueofgraphs.com)",
+      "WebFetch(domain:libraries.io)",
+      "mcp__ide__getDiagnostics",
+      "Bash(test:*)"
+    ]
+  }
+}

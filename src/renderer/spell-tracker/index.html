@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+  <title>Spell Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: transparent;
+      color: #c8c8c8;
+      overflow: hidden;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .panel {
+      background: rgba(10, 10, 20, 0.92);
+      border: 1px solid rgba(200, 155, 60, 0.5);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: auto;
+    }
+
+    /* ── Drag regions ── */
+    .draggable { -webkit-app-region: drag !important; pointer-events: auto !important; }
+    .no-drag { -webkit-app-region: no-drag; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(200, 155, 60, 0.25);
+      cursor: grab;
+    }
+
+    .header-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #c89b3c;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .drag-handle {
+      font-size: 12px;
+      color: #c89b3c;
+      opacity: 0.35;
+      transition: opacity 0.2s;
+      margin-right: 6px;
+      cursor: grab;
+    }
+
+    .header:hover .drag-handle { opacity: 0.7; }
+
+    .tts-toggle {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(200, 155, 60, 0.3);
+      background: rgba(200, 155, 60, 0.08);
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+      pointer-events: auto;
+      -webkit-app-region: no-drag;
+    }
+
+    .tts-toggle.active {
+      background: rgba(200, 155, 60, 0.2);
+      color: #c89b3c;
+      border-color: #c89b3c;
+    }
+
+    /* ── Enemy rows ── */
+    .enemy-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .enemy-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .champ-name {
+      font-size: 10px;
+      font-weight: 600;
+      color: #ddd;
+      width: 70px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .spells {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+
+    /* ── Spell buttons ── */
+    .spell-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      height: 32px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    .spell-btn:hover {
+      border-color: rgba(200, 155, 60, 0.4);
+      background: rgba(200, 155, 60, 0.08);
+    }
+
+    .spell-btn:active {
+      transform: scale(0.96);
+    }
+
+    .spell-label {
+      font-size: 8px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      position: absolute;
+      top: 2px;
+      left: 4px;
+    }
+
+    .spell-timer {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ccc;
+    }
+
+    /* ── States ── */
+    .spell-btn.up {
+      border-color: rgba(60, 180, 90, 0.4);
+      background: rgba(60, 180, 90, 0.08);
+    }
+
+    .spell-btn.up .spell-timer {
+      color: #55c06a;
+      font-size: 10px;
+    }
+
+    .spell-btn.counting .spell-timer {
+      color: #e0c050;
+    }
+
+    .spell-btn.alert-60 {
+      animation: pulseWarn 1.2s ease-in-out infinite;
+    }
+
+    .spell-btn.alert-30 {
+      animation: pulseUrgent 0.8s ease-in-out infinite;
+    }
+
+    @keyframes pulseWarn {
+      0%, 100% { border-color: rgba(224, 192, 80, 0.3); background: rgba(224, 192, 80, 0.06); }
+      50% { border-color: rgba(224, 192, 80, 0.7); background: rgba(224, 192, 80, 0.15); }
+    }
+
+    @keyframes pulseUrgent {
+      0%, 100% { border-color: rgba(220, 60, 60, 0.3); background: rgba(220, 60, 60, 0.06); }
+      50% { border-color: rgba(220, 60, 60, 0.8); background: rgba(220, 60, 60, 0.2); }
+    }
+
+    /* ── Haste indicators ── */
+    .haste-icons {
+      display: flex;
+      gap: 2px;
+      margin-left: auto;
+    }
+
+    .haste-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .haste-dot.ionian { background: rgba(80, 160, 220, 0.6); }
+    .haste-dot.cosmic { background: rgba(180, 120, 255, 0.6); }
+
+    /* ── Waiting state ── */
+    .waiting {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #555;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <!-- Header (draggable) -->
+    <div class="header draggable">
+      <div style="display: flex; align-items: center;">
+        <div class="drag-handle" title="Hold Tab to move this window">&#10021;</div>
+        <div class="header-title">Spell Tracker</div>
+      </div>
+      <div class="tts-toggle no-drag" id="tts-toggle" title="Toggle audio cues">TTS</div>
+    </div>
+
+    <!-- Enemy list -->
+    <div class="enemy-list no-drag" id="enemy-list">
+      <div class="waiting" id="waiting">Waiting for game data...</div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──
+    const enemies = []; // { champion, spell1: { name, cd, timer, intervalId }, spell2: {...}, hasIonian, hasCosmicInsight }
+    let ttsEnabled = false;
+
+    // ── DOM refs ──
+    const $enemyList = document.getElementById("enemy-list");
+    const $waiting = document.getElementById("waiting");
+    const $ttsToggle = document.getElementById("tts-toggle");
+
+    // ── Spell abbreviations ──
+    const SPELL_ABBR = {
+      Flash: "F", Teleport: "TP", Ignite: "IGN", Exhaust: "EXH",
+      Heal: "HL", Barrier: "BAR", Cleanse: "CL", Ghost: "GH",
+      Smite: "SM", Mark: "MK", Clarity: "CLR", Unknown: "?"
+    };
+
+    // ── TTS toggle ──
+    $ttsToggle.addEventListener("click", () => {
+      ttsEnabled = !ttsEnabled;
+      $ttsToggle.classList.toggle("active", ttsEnabled);
+    });
+
+    // ── Format seconds as m:ss ──
+    function formatTime(sec) {
+      if (sec <= 0) return "UP";
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    // ── TTS announce ──
+    function announce(text) {
+      if (!ttsEnabled || !window.speechSynthesis) return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.1;
+      utterance.volume = 0.8;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // ── Build the UI for all enemies ──
+    function renderEnemies() {
+      $waiting.classList.add("hidden");
+      // Clear existing rows but not the waiting div
+      const rows = $enemyList.querySelectorAll(".enemy-row");
+      rows.forEach((r) => r.remove());
+
+      for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        const row = document.createElement("div");
+        row.className = "enemy-row";
+        row.id = `enemy-${i}`;
+
+        const hasteHtml = (e.hasIonian || e.hasCosmicInsight)
+          ? `<div class="haste-icons">${e.hasIonian ? '<div class="haste-dot ionian" title="Ionian Boots"></div>' : ""}${e.hasCosmicInsight ? '<div class="haste-dot cosmic" title="Cosmic Insight"></div>' : ""}</div>`
+          : "";
+
+        row.innerHTML = `
+          <div class="champ-name" title="${e.champion}">${e.champion}</div>
+          <div class="spells">
+            <div class="spell-btn up" id="spell-${i}-1" data-enemy="${i}" data-slot="1">
+              <span class="spell-label">${SPELL_ABBR[e.spell1.name] || e.spell1.name.substring(0, 2).toUpperCase()}</span>
+              <span class="spell-timer">UP</span>
+            </div>
+            <div class="spell-btn up" id="spell-${i}-2" data-enemy="${i}" data-slot="2">
+              <span class="spell-label">${SPELL_ABBR[e.spell2.name] || e.spell2.name.substring(0, 2).toUpperCase()}</span>
+              <span class="spell-timer">UP</span>
+            </div>
+          </div>
+          ${hasteHtml}
+        `;
+
+        $enemyList.appendChild(row);
+
+        // Attach click handlers
+        row.querySelector(`#spell-${i}-1`).addEventListener("click", () => startTimer(i, 1));
+        row.querySelector(`#spell-${i}-2`).addEventListener("click", () => startTimer(i, 2));
+      }
+    }
+
+    // ── Start a cooldown timer ──
+    function startTimer(enemyIdx, spellSlot) {
+      const e = enemies[enemyIdx];
+      const spell = spellSlot === 1 ? e.spell1 : e.spell2;
+      const btnId = `spell-${enemyIdx}-${spellSlot}`;
+      const $btn = document.getElementById(btnId);
+      if (!$btn) return;
+
+      // If already counting, clicking again resets
+      if (spell.intervalId) {
+        clearInterval(spell.intervalId);
+        spell.intervalId = null;
+      }
+
+      spell.timer = spell.cd;
+      updateSpellButton($btn, spell, e.champion);
+
+      spell.intervalId = setInterval(() => {
+        spell.timer--;
+
+        if (spell.timer <= 0) {
+          spell.timer = 0;
+          clearInterval(spell.intervalId);
+          spell.intervalId = null;
+          announce(`${e.champion} ${spell.name} is up`);
+        }
+
+        updateSpellButton($btn, spell, e.champion);
+      }, 1000);
+    }
+
+    // ── Update a spell button display ──
+    function updateSpellButton($btn, spell, champion) {
+      const $timer = $btn.querySelector(".spell-timer");
+      const remaining = spell.timer;
+
+      $btn.className = "spell-btn";
+
+      if (remaining <= 0) {
+        $btn.classList.add("up");
+        $timer.textContent = "UP";
+      } else {
+        $btn.classList.add("counting");
+        $timer.textContent = formatTime(remaining);
+
+        if (remaining <= 30) {
+          $btn.classList.add("alert-30");
+        } else if (remaining <= 60) {
+          $btn.classList.add("alert-60");
+        }
+      }
+    }
+
+    // ── Initialize enemies from main process data ──
+    function initEnemies(data) {
+      enemies.length = 0;
+      for (const e of data) {
+        enemies.push({
+          champion: e.champion,
+          spell1: { name: e.spell1.name, cd: e.spell1.adjustedCd, timer: 0, intervalId: null },
+          spell2: { name: e.spell2.name, cd: e.spell2.adjustedCd, timer: 0, intervalId: null },
+          hasIonian: e.hasIonian,
+          hasCosmicInsight: e.hasCosmicInsight,
+        });
+      }
+      renderEnemies();
+    }
+
+    // ── Update enemy item/rune data (adjusts cooldowns for future timers) ──
+    function updateEnemies(data) {
+      for (const updated of data) {
+        const existing = enemies.find((e) => e.champion === updated.champion);
+        if (!existing) continue;
+
+        existing.spell1.cd = updated.spell1.adjustedCd;
+        existing.spell2.cd = updated.spell2.adjustedCd;
+        existing.hasIonian = updated.hasIonian;
+        existing.hasCosmicInsight = updated.hasCosmicInsight;
+      }
+
+      // Re-render haste indicators
+      for (let i = 0; i < enemies.length; i++) {
+        const row = document.getElementById(`enemy-${i}`);
+        if (!row) continue;
+        const hasteIcons = row.querySelector(".haste-icons");
+        const e = enemies[i];
+
+        if (e.hasIonian || e.hasCosmicInsight) {
+          if (hasteIcons) {
+            hasteIcons.innerHTML = `${e.hasIonian ? '<div class="haste-dot ionian" title="Ionian Boots"></div>' : ""}${e.hasCosmicInsight ? '<div class="haste-dot cosmic" title="Cosmic Insight"></div>' : ""}`;
+          }
+        }
+      }
+    }
+
+    // ── IPC listeners ──
+    if (window.riftApi) {
+      window.riftApi.on("spell:init", (data) => {
+        if (data && data.enemies) initEnemies(data.enemies);
+      });
+
+      window.riftApi.on("spell:enemy-update", (data) => {
+        if (data && data.enemies) updateEnemies(data.enemies);
+      });
+
+      // Reset on phase change away from IN_GAME
+      window.riftApi.on("orchestrator:phase-changed", (phase) => {
+        if (phase !== "IN_GAME") {
+          // Clear all timers
+          for (const e of enemies) {
+            if (e.spell1.intervalId) clearInterval(e.spell1.intervalId);
+            if (e.spell2.intervalId) clearInterval(e.spell2.intervalId);
+          }
+          enemies.length = 0;
+          $enemyList.querySelectorAll(".enemy-row").forEach((r) => r.remove());
+          $waiting.classList.remove("hidden");
+        }
+      });
+    }
+  </script>
+</body>
+</html>

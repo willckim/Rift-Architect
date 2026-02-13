@@ -1,0 +1,36 @@
+{
+  "name": "rift-architect",
+  "version": "1.0.0",
+  "description": "Multi-Agent League of Legends Orchestrator",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "package:win": "electron-builder --win",
+    "package:mac": "electron-builder --mac",
+    "package:linux": "electron-builder --linux",
+    "test": "echo \"No tests configured yet\" && exit 0"
+  },
+  "keywords": [
+    "league-of-legends",
+    "electron",
+    "ai",
+    "agents"
+  ],
+  "author": "Big Boss",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^40.4.0",
+    "electron-builder": "^26.7.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "better-sqlite3": "^12.6.2",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "electron-store": "^8.2.0",
+    "uiohook-napi": "^1.5.4",
+    "ws": "^8.19.0"
+  }
+}
